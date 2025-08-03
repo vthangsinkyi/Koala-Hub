@@ -39,18 +39,12 @@ if Fluent then
         return #Players:GetPlayers()
     end
 
-    local function showMessage(title, content, delay)
-        Window:Dialog({
+    local function showNotify(title, content, delay)
+        Window:Notify({
             Title = title,
             Content = content,
-            Buttons = {
-                {
-                    Title = "OK",
-                    Callback = function() end
-                }
-            }
+            Duration = delay or 5
         })
-        task.wait(delay or 5)
     end
 
     local currentJobId = game.JobId
@@ -62,12 +56,12 @@ if Fluent then
         local playerCount = getPlayerCount()
         
         if isPrivate and playerCount < 2 and not isPublic then
-            showMessage("Warning", "Private server has no other players. Rejoin public server or invite friends first.", delay)
+            showNotify("Warning", "Private server has no other players. Rejoin public server or invite friends first.", delay)
             return
         end
         
         local message = isPrivate and "Rejoining private server..." or "Rejoining public server..."
-        showMessage("Rejoining", message .. " in " .. delay .. " seconds", delay)
+        showNotify("Rejoining", message .. " in " .. delay .. " seconds", delay)
         
         task.wait(delay)
         
@@ -86,7 +80,7 @@ if Fluent then
                 currentJobId = game.JobId -- Update JobId after rejoin
             end)
             if not success then
-                showMessage("Error", "Failed to reserve server. Attempting to rejoin with JobId or new server... Error: " .. tostring(result), 5)
+                showNotify("Error", "Failed to reserve server. Attempting to rejoin with JobId or new server... Error: " .. tostring(result), 5)
                 local successJobId, _ = pcall(function()
                     TeleportService:TeleportToPlaceInstance(game.PlaceId, currentJobId)
                 end)
@@ -124,9 +118,10 @@ if Fluent then
     Tabs.Main:AddToggle("AutoPublicRejoin", {
         Title = "Auto Public Rejoin",
         Description = "Enable to auto-rejoin public server",
-        Default = autoPublicRejoin,
+        Default = SaveManager and SaveManager:Get("AutoPublicRejoin", false) or false,
         Callback = function(value)
             autoPublicRejoin = value
+            if SaveManager then SaveManager:Set("AutoPublicRejoin", value) end
             if value then autoPrivateRejoin = false end
         end
     })
@@ -134,9 +129,10 @@ if Fluent then
     Tabs.Main:AddToggle("AutoPrivateRejoin", {
         Title = "Auto Private Rejoin",
         Description = "Enable to auto-rejoin private server",
-        Default = autoPrivateRejoin,
+        Default = SaveManager and SaveManager:Get("AutoPrivateRejoin", false) or false,
         Callback = function(value)
             autoPrivateRejoin = value
+            if SaveManager then SaveManager:Set("AutoPrivateRejoin", value) end
             if value then autoPublicRejoin = false end
         end
     })
@@ -206,7 +202,7 @@ if Fluent then
 
     Window:SelectTab(1)
 
-    showMessage("Server Rejoiner", "Script loaded successfully! Toggle UI with the button on the left.", 5)
+    showNotify("Server Rejoiner", "Script loaded successfully!", 5)
 else
     warn("Fluent UI failed to load. Script functionality limited.")
 end
