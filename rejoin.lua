@@ -48,32 +48,15 @@ local function showMessage(title, content, delay)
     task.wait(delay or 5)
 end
 
-local function rejoinServer(delay)
+local function rejoinServer(delay, isPublic)
     delay = delay or 20
     if not TeleportService then return end
     
     local isPrivate = getServerType()
     local playerCount = getPlayerCount()
     
-    if isPrivate and playerCount < 2 then
-        Window:Dialog({
-            Title = "Warning",
-            Content = "Private server has no other players. Rejoin public server or invite friends first.",
-            Buttons = {
-                {
-                    Title = "Rejoin Public",
-                    Callback = function()
-                        showMessage("Rejoining", "Rejoining public server in " .. delay .. " seconds...", delay)
-                        task.wait(delay)
-                        TeleportService:Teleport(game.PlaceId)
-                    end
-                },
-                {
-                    Title = "Cancel",
-                    Callback = function() end
-                }
-            }
-        })
+    if isPrivate and playerCount < 2 and not isPublic then
+        showMessage("Warning", "Private server has no other players. Rejoin public server or invite friends first.", delay)
         return
     end
     
@@ -82,7 +65,7 @@ local function rejoinServer(delay)
     
     task.wait(delay)
     
-    if isPrivate then
+    if isPrivate and not isPublic then
         local privateServerId = ReplicatedStorage:FindFirstChild("PrivateServerId") or ReplicatedStorage:FindFirstChild("PSID")
         if privateServerId and privateServerId.Value then
             TeleportService:TeleportToPrivateServer(game.PlaceId, privateServerId.Value)
@@ -94,6 +77,23 @@ local function rejoinServer(delay)
     end
 end
 
+-- Auto Rejoin Logic
+local autoPublicRejoin = false
+local autoPrivateRejoin = false
+local uiEnabled = true
+
+spawn(function()
+    while wait(1) do
+        if uiEnabled then
+            if autoPublicRejoin then
+                rejoinServer(20, true)
+            elseif autoPrivateRejoin then
+                rejoinServer(20, false)
+            end
+        end
+    end
+end)
+
 -- Create UI
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "home" }),
@@ -101,69 +101,29 @@ local Tabs = {
 }
 
 -- Main Tab
-Tabs.Main:AddButton({
-    Title = "Rejoin Public Server",
-    Description = "Rejoin the current public server",
-    Callback = function()
-        if getServerType() then
-            Window:Dialog({
-                Title = "Warning",
-                Content = "You are in a private server. Rejoin private instead?",
-                Buttons = {
-                    {
-                        Title = "Rejoin Private",
-                        Callback = function()
-                            rejoinServer()
-                        end
-                    },
-                    {
-                        Title = "Rejoin Public",
-                        Callback = function()
-                            rejoinServer()
-                        end
-                    },
-                    {
-                        Title = "Cancel",
-                        Callback = function() end
-                    }
-                }
-            })
-        else
-            rejoinServer()
-        end
+Tabs.Main:AddToggle("AutoPublicRejoin", {
+    Title = "Auto Public Rejoin",
+    Description = "Enable to auto-rejoin public server",
+    Default = autoPublicRejoin,
+    Callback = function(value)
+        autoPublicRejoin = value
+        if value then autoPrivateRejoin = false end
     end
 })
 
-Tabs.Main:AddButton({
-    Title = "Rejoin Private Server",
-    Description = "Rejoin the current private server",
-    Callback = function()
-        if not getServerType() then
-            Window:Dialog({
-                Title = "Warning",
-                Content = "You are not in a private server. Rejoin public instead?",
-                Buttons = {
-                    {
-                        Title = "Rejoin Public",
-                        Callback = function()
-                            rejoinServer()
-                        end
-                    },
-                    {
-                        Title = "Cancel",
-                        Callback = function() end
-                    }
-                }
-            })
-        else
-            rejoinServer()
-        end
+Tabs.Main:AddToggle("AutoPrivateRejoin", {
+    Title = "Auto Private Rejoin",
+    Description = "Enable to auto-rejoin private server",
+    Default = autoPrivateRejoin,
+    Callback = function(value)
+        autoPrivateRejoin = value
+        if value then autoPublicRejoin = false end
     end
 })
 
 Tabs.Main:AddParagraph({
     Title = "Information",
-    Content = "Private server rejoin will check for other players first. If none are found, you'll get a warning."
+    Content = "Private server rejoin checks for other players. If none, it warns you."
 })
 
 -- Settings Tab
@@ -172,7 +132,7 @@ local autoCheckSetting = true
 
 Tabs.Settings:AddSlider("RejoinDelay", {
     Title = "Rejoin Delay (seconds)",
-    Description = "Time before rejoining executes",
+    Description = "Time between rejoin attempts",
     Default = delaySetting,
     Min = 5,
     Max = 60,
@@ -191,6 +151,19 @@ Tabs.Settings:AddToggle("AutoCheckPlayers", {
     end
 })
 
+-- UI Toggle Button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 50, 0, 50)
+toggleButton.Position = UDim2.new(1, -60, 0, 10)
+toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+toggleButton.Text = ""
+toggleButton.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+toggleButton.MouseButton1Click:Connect(function()
+    uiEnabled = not uiEnabled
+    toggleButton.BackgroundColor3 = uiEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    Window.Visible = uiEnabled
+end)
+
 -- Save settings
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
@@ -206,4 +179,4 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
 
-showMessage("Server Rejoiner", "Script loaded successfully!", 5)
+showMessage("Server Rejoiner", "Script loaded successfully! Toggle UI with the button on the right.", 5)
