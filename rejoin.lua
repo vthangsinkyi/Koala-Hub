@@ -312,4 +312,4 @@ if SaveManager and InterfaceManager then
 end
 
 Window:SelectTab(1)
-showNotify("Server Rejoiner", "Script loaded successfully!", 5)
+showNotify("Server Rejoiner", "Script loaded successfully!", 5) 
