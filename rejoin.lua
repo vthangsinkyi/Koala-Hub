@@ -34,6 +34,20 @@ local function getPlayerCount()
     return #Players:GetPlayers()
 end
 
+local function showMessage(title, content, delay)
+    Window:Dialog({
+        Title = title,
+        Content = content,
+        Buttons = {
+            {
+                Title = "OK",
+                Callback = function() end
+            }
+        }
+    })
+    task.wait(delay or 5)
+end
+
 local function rejoinServer(delay)
     delay = delay or 20
     if not TeleportService then return end
@@ -49,11 +63,7 @@ local function rejoinServer(delay)
                 {
                     Title = "Rejoin Public",
                     Callback = function()
-                        Window:Notify({
-                            Title = "Rejoining",
-                            Content = "Rejoining public server in " .. delay .. " seconds...",
-                            Duration = delay
-                        })
+                        showMessage("Rejoining", "Rejoining public server in " .. delay .. " seconds...", delay)
                         task.wait(delay)
                         TeleportService:Teleport(game.PlaceId)
                     end
@@ -68,11 +78,7 @@ local function rejoinServer(delay)
     end
     
     local message = isPrivate and "Rejoining private server..." or "Rejoining public server..."
-    Window:Notify({
-        Title = "Rejoining",
-        Content = message .. " in " .. delay .. " seconds",
-        Duration = delay
-    })
+    showMessage("Rejoining", message .. " in " .. delay .. " seconds", delay)
     
     task.wait(delay)
     
@@ -200,8 +206,4 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
 
-Fluent:Notify({
-    Title = "Server Rejoiner",
-    Content = "Script loaded successfully!",
-    Duration = 5
-})
+showMessage("Server Rejoiner", "Script loaded successfully!", 5)
