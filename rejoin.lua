@@ -92,8 +92,8 @@ if Fluent then
     end
 
     -- Auto Rejoin Logic
-    local autoPublicRejoin = false
-    local autoPrivateRejoin = false
+    local autoPublicRejoin = SaveManager and SaveManager:Get("AutoPublicRejoin", false) or false
+    local autoPrivateRejoin = SaveManager and SaveManager:Get("AutoPrivateRejoin", false) or false
     local uiEnabled = true
 
     spawn(function()
@@ -118,7 +118,7 @@ if Fluent then
     Tabs.Main:AddToggle("AutoPublicRejoin", {
         Title = "Auto Public Rejoin",
         Description = "Enable to auto-rejoin public server",
-        Default = SaveManager and SaveManager:Get("AutoPublicRejoin", false) or false,
+        Default = autoPublicRejoin,
         Callback = function(value)
             autoPublicRejoin = value
             if SaveManager then SaveManager:Set("AutoPublicRejoin", value) end
@@ -129,7 +129,7 @@ if Fluent then
     Tabs.Main:AddToggle("AutoPrivateRejoin", {
         Title = "Auto Private Rejoin",
         Description = "Enable to auto-rejoin private server",
-        Default = SaveManager and SaveManager:Get("AutoPrivateRejoin", false) or false,
+        Default = autoPrivateRejoin,
         Callback = function(value)
             autoPrivateRejoin = value
             if SaveManager then SaveManager:Set("AutoPrivateRejoin", value) end
@@ -167,22 +167,37 @@ if Fluent then
         end
     })
 
-    -- UI Toggle Button with Icon-like Behavior
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Size = UDim2.new(0, 50, 0, 50)
-    toggleButton.Position = UDim2.new(0, 10, 0, 10)
-    toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    toggleButton.Text = uiEnabled and "☑" or "☐"
-    toggleButton.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-    if toggleButton.Parent then
-        toggleButton.MouseButton1Click:Connect(function()
-            uiEnabled = not uiEnabled
-            toggleButton.BackgroundColor3 = uiEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-            toggleButton.Text = uiEnabled and "☑" or "☐"
-            Window.Visible = uiEnabled
-        end)
+    -- UI Toggle Button with Fluent UI Component
+    if Window then
+        local ToggleTab = Window:AddTab({ Title = "Toggle", Icon = "power" })
+        ToggleTab:AddToggle("UIToggle", {
+            Title = "Toggle UI",
+            Description = "Show/Hide the main UI",
+            Default = uiEnabled,
+            Callback = function(value)
+                uiEnabled = value
+                Window.Visible = uiEnabled
+                if SaveManager then SaveManager:Set("UIEnabled", uiEnabled) end
+            end
+        })
     else
-        warn("Failed to create toggle button. PlayerGui inaccessible.")
+        local toggleButton = Instance.new("TextButton")
+        toggleButton.Size = UDim2.new(0, 50, 0, 50)
+        toggleButton.Position = UDim2.new(0, 10, 0, 10)
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        toggleButton.Text = uiEnabled and "☑" or "☐"
+        toggleButton.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+        if toggleButton.Parent then
+            toggleButton.MouseButton1Click:Connect(function()
+                uiEnabled = not uiEnabled
+                toggleButton.BackgroundColor3 = uiEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+                toggleButton.Text = uiEnabled and "☑" or "☐"
+                Window.Visible = uiEnabled
+                if SaveManager then SaveManager:Set("UIEnabled", uiEnabled) end
+            end)
+        else
+            warn("Failed to create toggle button. PlayerGui inaccessible.")
+        end
     end
 
     -- Save settings
@@ -198,6 +213,10 @@ if Fluent then
 
         SaveManager:SetFolder("ServerRejoiner")
         SaveManager:BuildConfigSection(Tabs.Settings)
+
+        -- Load saved UI state
+        uiEnabled = SaveManager:Get("UIEnabled", true)
+        Window.Visible = uiEnabled
     end
 
     Window:SelectTab(1)
