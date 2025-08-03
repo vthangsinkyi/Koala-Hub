@@ -4,6 +4,7 @@ local TeleportService = game:GetService("TeleportService")
 local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
 
 -- Fluent UI setup
 local success, Fluent = pcall(function()
@@ -67,11 +68,52 @@ if Fluent then
     end
 
     local function showNotify(title, content, duration)
-        Window:Notify({
-            Title = title,
-            Content = content,
-            Duration = duration or 5
-        })
+        if Window and Window.Notify then
+            Window:Notify({
+                Title = title,
+                Content = content,
+                Duration = duration or 5
+            })
+        else
+            local gui = Instance.new("ScreenGui")
+            local frame = Instance.new("Frame")
+            local titleLabel = Instance.new("TextLabel")
+            local contentLabel = Instance.new("TextLabel")
+            
+            gui.Name = "ServerRejoinerNotify"
+            gui.Parent = CoreGui
+            
+            frame.Size = UDim2.new(0, 300, 0, 100)
+            frame.Position = UDim2.new(1, -320, 1, -120)
+            frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+            frame.BorderSizePixel = 0
+            frame.Parent = gui
+            
+            titleLabel.Text = title
+            titleLabel.Size = UDim2.new(1, -20, 0, 30)
+            titleLabel.Position = UDim2.new(0, 10, 0, 10)
+            titleLabel.Font = Enum.Font.SourceSansBold
+            titleLabel.TextSize = 18
+            titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            titleLabel.BackgroundTransparency = 1
+            titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            titleLabel.Parent = frame
+            
+            contentLabel.Text = content
+            contentLabel.Size = UDim2.new(1, -20, 1, -40)
+            contentLabel.Position = UDim2.new(0, 10, 0, 40)
+            contentLabel.Font = Enum.Font.SourceSans
+            contentLabel.TextSize = 14
+            contentLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            contentLabel.BackgroundTransparency = 1
+            contentLabel.TextXAlignment = Enum.TextXAlignment.Left
+            contentLabel.TextYAlignment = Enum.TextYAlignment.Top
+            contentLabel.Parent = frame
+            
+            task.delay(duration or 5, function()
+                gui:Destroy()
+            end)
+        end
     end
 
     local function rejoinServer(delay, isPublic)
@@ -159,7 +201,8 @@ if Fluent then
             if value then
                 autoPrivateRejoin = false
                 settings.autoPrivateRejoin = false
-                Tabs.Main:UpdateToggle("AutoPrivateRejoin", false)
+                -- Removed UpdateToggle, handle manually
+                Tabs.Main:UpdateElement("AutoPrivateRejoin", { Enabled = false })
             end
             saveSettings(settings)
         end
@@ -175,7 +218,8 @@ if Fluent then
             if value then
                 autoPublicRejoin = false
                 settings.autoPublicRejoin = false
-                Tabs.Main:UpdateToggle("AutoPublicRejoin", false)
+                -- Removed UpdateToggle, handle manually
+                Tabs.Main:UpdateElement("AutoPublicRejoin", { Enabled = false })
             end
             saveSettings(settings)
         end
@@ -216,7 +260,6 @@ if Fluent then
         end
     })
 
-    -- UI Toggle within Fluent
     Tabs.Settings:AddToggle("UIToggle", {
         Title = "Toggle UI",
         Description = "Show/Hide the main UI",
