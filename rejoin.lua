@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TeleportService = game:GetService("TeleportService")
 local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
 
 -- Fluent UI setup
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
@@ -48,6 +49,7 @@ local function showMessage(title, content, delay)
     task.wait(delay or 5)
 end
 
+local currentJobId = game.JobId
 local function rejoinServer(delay, isPublic)
     delay = delay or 20
     if not TeleportService then return end
@@ -70,10 +72,17 @@ local function rejoinServer(delay, isPublic)
         if privateServerId and privateServerId.Value then
             TeleportService:TeleportToPrivateServer(game.PlaceId, privateServerId.Value)
         else
-            TeleportService:Teleport(game.PlaceId)
+            TeleportService:Teleport(game.PlaceId, currentJobId)
         end
     else
-        TeleportService:Teleport(game.PlaceId)
+        -- Attempt to rejoin the same public server using JobId
+        local success, result = pcall(function()
+            return TeleportService:TeleportToPlaceInstance(game.PlaceId, currentJobId)
+        end)
+        if not success then
+            showMessage("Error", "Failed to rejoin same server. Joining a new public server...", 5)
+            TeleportService:Teleport(game.PlaceId) -- Fallback to any public server
+        end
     end
 end
 
@@ -151,16 +160,17 @@ Tabs.Settings:AddToggle("AutoCheckPlayers", {
     end
 })
 
--- UI Toggle Button
+-- UI Toggle Button with Icon-like Behavior
 local toggleButton = Instance.new("TextButton")
 toggleButton.Size = UDim2.new(0, 50, 0, 50)
-toggleButton.Position = UDim2.new(1, -60, 0, 10)
+toggleButton.Position = UDim2.new(0, 10, 0, 10)
 toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-toggleButton.Text = ""
+toggleButton.Text = uiEnabled and "☑" or "☐" -- Simple icon-like toggle (check/uncheck)
 toggleButton.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 toggleButton.MouseButton1Click:Connect(function()
     uiEnabled = not uiEnabled
     toggleButton.BackgroundColor3 = uiEnabled and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+    toggleButton.Text = uiEnabled and "☑" or "☐"
     Window.Visible = uiEnabled
 end)
 
@@ -179,4 +189,4 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 
 Window:SelectTab(1)
 
-showMessage("Server Rejoiner", "Script loaded successfully! Toggle UI with the button on the right.", 5)
+showMessage("Server Rejoiner", "Script loaded successfully! Toggle UI with the button on the left.", 5)
