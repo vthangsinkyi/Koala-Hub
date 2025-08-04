@@ -19,7 +19,7 @@ local InterfaceManager = Fluent and loadstring(game:HttpGet("https://raw.githubu
 
 if Fluent then
     local Window = Fluent:CreateWindow({
-        Title = "Server Rejoiner",
+        Title = "Koala Hub",
         SubTitle = "by [Day]",
         TabWidth = 160,
         Size = UDim2.fromOffset(400, 350),
