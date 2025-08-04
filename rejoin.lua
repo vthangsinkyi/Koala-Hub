@@ -39,7 +39,8 @@ if Fluent then
         autoSellInventory = false,
         autoGearShop = false,
         autoCosmeticShop = false,
-        autoSeedShop = false
+        autoSeedShop = false,
+        autoBuy = false
     }
 
     local function loadSettings()
@@ -349,9 +350,31 @@ if Fluent then
     local u11S = require(ReplicatedStorage.NPC_MOD)
     local u12S = require(ReplicatedStorage.Modules.GuiController)
 
+    local gears = {
+        "Watering Can", "Trowel", "Recall Wrench", "Basic Sprinkler", "Advance Sprinkler",
+        "Medium Toy", "Medium Treat", "Godly Sprinkler", "Magnifying Glass", "Tanning Mirror",
+        "Master Sprinkler", "Cleaning Spray", "Favorite Tool", "Harvest Tool", "Friendship Pot", "Levelup Lollipop"
+    }
+    local checkedGears = {}
+    for _, g in ipairs(gears) do
+        checkedGears[g] = false
+    end
+
+    local seeds = {
+        "Carrot", "Strawberry", "Blueberry", "Tomato", "Bamboo", "Cactus", "Pepper", "Cacao", "Blood Banana",
+        "Giant Pinecone", "Pumpkin", "Beanstalk", "Watermelon", "Pineapple", "Grape", "Sugar Apple",
+        "Pitcher Plant", "Feijoa", "Prickly Pear", "Pear", "Apple", "Dragonfruit", "Coconut",
+        "Mushroom", "Orange Tulip", "Corn"
+    }
+    local checkedSeeds = {}
+    for _, s in ipairs(seeds) do
+        checkedSeeds[s] = false
+    end
+
     local gearActive = false
     local cosmeticActive = false
     local seedActive = false
+    local autoBuy = settings.autoBuy
 
     local function cancelYes(parent, highlight, player)
         u11S.End_Speak(player)
@@ -438,6 +461,67 @@ if Fluent then
             wait(1)
         end
     end
+
+    Tabs.Shop:AddDropdown("GearSelect", {
+        Title = "Select Gear",
+        Values = gears,
+        Multi = true,
+        Default = {},
+        Callback = function(value)
+            for g, _ in pairs(checkedGears) do
+                checkedGears[g] = false
+            end
+            for _, v in ipairs(value) do
+                checkedGears[v] = true
+            end
+        end
+    })
+
+    Tabs.Shop:AddDropdown("SeedSelect", {
+        Title = "Select Seed",
+        Values = seeds,
+        Multi = true,
+        Default = {},
+        Callback = function(value)
+            for s, _ in pairs(checkedSeeds) do
+                checkedSeeds[s] = false
+            end
+            for _, v in ipairs(value) do
+                checkedSeeds[v] = true
+            end
+        end
+    })
+
+    Tabs.Shop:AddToggle("AutoBuy", {
+        Title = "Auto Buy",
+        Description = "Automatically buys selected gears and seeds",
+        Default = autoBuy,
+        Callback = function(value)
+            settings.autoBuy = value
+            saveSettings(settings)
+            if value then
+                task.spawn(function()
+                    while autoBuy do
+                        for g, v in pairs(checkedGears) do
+                            if v then
+                                pcall(function()
+                                    ReplicatedStorage.GameEvents.BuyGearStock:FireServer(g)
+                                end)
+                            end
+                        end
+                        for s, v in pairs(checkedSeeds) do
+                            if v then
+                                pcall(function()
+                                    ReplicatedStorage.GameEvents.BuySeedStock:FireServer(s)
+                                end)
+                            end
+                        end
+                        task.wait(0.5)
+                    end
+                end)
+            end
+        end
+    })
 
     Tabs.Shop:AddToggle("AutoGearShop", {
         Title = "Gear Shop",
