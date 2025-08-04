@@ -40,7 +40,11 @@ if Fluent then
         autoGearShop = false,
         autoCosmeticShop = false,
         autoSeedShop = false,
-        autoBuy = false
+        autoBuy = false,
+        autoCollect = false,
+        petIdle = false,
+        autoShovel = false,
+        visualWeather = false
     }
 
     local function loadSettings()
@@ -200,16 +204,144 @@ if Fluent then
         Main = Window:AddTab({ Title = "Main", Icon = "home" }),
         Farming = Window:AddTab({ Title = "Farming", Icon = "leaf" }),
         Shop = Window:AddTab({ Title = "Shop", Icon = "shopping" }),
-        Misc = Window:AddTab({ Title = "Misc", Icon = "list" }),
-        JoinServer = Window:AddTab({ Title = "Join Server", Icon = "link" }),
+        Pets = Window:AddTab({ Title = "Pets", Icon = "paw" }),
+        Others = Window:AddTab({ Title = "Others", Icon = "eye" }),
+        Misc = Window:AddTab({ Title = "Misc", Icon = "info" }),
         Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
     }
 
     -- Main Tab
     Tabs.Main:AddParagraph({
         Title = "Information",
-        Content = "This tab is reserved for future features."
+        Content = "This tab contains core features."
     })
+
+    getgenv().SelectedMutations = {}
+    getgenv().SelectedFruit = nil
+    getgenv().AutoCollect = settings.autoCollect
+
+    local mutationNames = {
+        "Gold", "Shiny", "Fried", "Pollinated", "Wet", "Rainbow", "Moonlit", "Chocolate", "Windstruck",
+        "Frozen", "Radiant", "Tranquil", "Corrupt", "Inverted", "Windy", "Chilled", "Shocked", "Disco"
+    }
+    local fruitNames = {
+        "Carrot", "Strawberry", "Blueberry", "Tomato", "Bamboo", "Cactus", "Pepper", "Cacao", "Blood Banana",
+        "Giant Pinecone", "Pumpkin", "Beanstalk", "Watermelon", "Pineapple", "Grape", "Sugar Apple", "Pitcher Plant",
+        "Feijoa", "Prickly Pear", "Pear", "Apple", "Dragonfruit", "Coconut", "Mushroom", "Orange Tulip", "Corn",
+        "Candy Blossom", "Bone Blossom", "Moon Blossom"
+    }
+
+    Tabs.Main:AddDropdown("MutationSelect", {
+        Title = "Mutation Select",
+        Values = mutationNames,
+        Multi = true,
+        Default = {},
+        Callback = function(value)
+            getgenv().SelectedMutations = value
+        end
+    })
+
+    Tabs.Main:AddDropdown("FruitSelect", {
+        Title = "Fruit Select",
+        Values = fruitNames,
+        Multi = false,
+        Default = {},
+        Callback = function(value)
+            getgenv().SelectedFruit = #value > 0 and value[1] or nil
+        end
+    })
+
+    Tabs.Main:AddToggle("AutoCollect", {
+        Title = "Auto Collect",
+        Description = "Automatically collects selected fruit",
+        Default = getgenv().AutoCollect,
+        Callback = function(value)
+            settings.autoCollect = value
+            getgenv().AutoCollect = value
+            saveSettings(settings)
+        end
+    })
+
+    local autoShovelState = settings.autoShovel
+    local DeleteObject = ReplicatedStorage.GameEvents:FindFirstChild("DeleteObject")
+    local SprinklerFolder = workspace.Farm.Farm.Important:WaitForChild("Objects_Physical")
+
+    local function holdShovel()
+        local plr = LocalPlayer
+        if not plr.Character then return end
+        local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+        if not hum then return end
+        local current = plr.Character:FindFirstChildOfClass("Tool")
+        if current and current.Name:lower():find("shovel") then return end
+        local backpack = plr:FindFirstChildOfClass("Backpack")
+        if not backpack then return end
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") and tool.Name:lower():find("shovel") then
+                hum:EquipTool(tool)
+                print("Equipped shovel:", tool.Name)
+                return
+            end
+        end
+        print("No shovel found in backpack!")
+    end
+
+    Tabs.Main:AddToggle("AutoShovel", {
+        Title = "Auto Shovel",
+        Description = "Automatically shovels selected sprinklers",
+        Default = autoShovelState,
+        Callback = function(value)
+            settings.autoShovel = value
+            autoShovelState = value
+            saveSettings(settings)
+            print("Auto Shovel toggled:", value)
+        end
+    })
+
+    task.spawn(function()
+        while task.wait(0.3) do
+            if getgenv().AutoCollect and getgenv().SelectedFruit then
+                local collectList = {}
+                for _, prompt in ipairs(workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") and CollectionService:HasTag(prompt, "CollectPrompt") then
+                        local model = prompt.Parent and prompt.Parent.Parent
+                        if model and string.find(string.lower(model.Name), string.lower(getgenv().SelectedFruit)) then
+                            if #getgenv().SelectedMutations == 0 then
+                                table.insert(collectList, model)
+                            else
+                                local mName = string.lower(model.Name)
+                                for _, mut in ipairs(getgenv().SelectedMutations) do
+                                    if string.find(mName, string.lower(mut)) then
+                                        table.insert(collectList, model)
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+                if #collectList > 0 then
+                    pcall(function()
+                        require(ReplicatedStorage.Modules.Remotes).Crops.Collect.send(collectList)
+                    end)
+                end
+            end
+            if autoShovelState then
+                holdShovel()
+                for _, model in ipairs(SprinklerFolder:GetChildren()) do
+                    if model:IsA("Model") then
+                        for name, _ in pairs(selectedSprinklers) do
+                            if selectedSprinklers[name] and string.find(model.Name, name) then
+                                DeleteObject:FireServer(model)
+                                print("Shoveling:", model.Name)
+                                task.wait(0.15)
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
 
     -- Farming Tab
     local u6F = require(ReplicatedStorage.Data.EnumRegistry.InventoryServiceEnums)
@@ -375,6 +507,7 @@ if Fluent then
     local cosmeticActive = false
     local seedActive = false
     local autoBuy = settings.autoBuy
+    local autoBuyRunning = false
 
     local function cancelYes(parent, highlight, player)
         u11S.End_Speak(player)
@@ -498,6 +631,7 @@ if Fluent then
         Default = autoBuy,
         Callback = function(value)
             settings.autoBuy = value
+            autoBuy = value
             saveSettings(settings)
             if value then
                 task.spawn(function()
@@ -565,70 +699,199 @@ if Fluent then
         end
     })
 
+    -- Pets Tab
+    getgenv().SelectedPets = {}
+    getgenv().PetIdle = settings.petIdle
+    local TargetPosition = Vector3.new(0, 0, 0)
+    local currentLoopThread = nil
+
+    local function getAllPetInfo()
+        local pets = {}
+        local PetUI = LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("ActivePetUI")
+        for _, frame in ipairs(PetUI.Frame.Main.ScrollingFrame:GetChildren()) do
+            if frame:IsA("Frame") and frame.Name ~= "PetTemplate" and frame:FindFirstChild("PET_TYPE") then
+                local uuid = frame.Name
+                local name = frame.PET_TYPE.Text or uuid
+                table.insert(pets, {uuid = uuid, name = name})
+            end
+        end
+        return pets
+    end
+
+    local function waitUntilPetNear(uuid, pos, maxTime)
+        local elapsed = 0
+        while elapsed < maxTime do
+            task.wait(0.05)
+            elapsed = elapsed + 0.05
+            local petModel = workspace:FindFirstChild(uuid)
+            if petModel and petModel:FindFirstChild("HumanoidRootPart") then
+                local petPos = petModel.HumanoidRootPart.Position
+                if (petPos - pos).Magnitude < 3 then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    local function gatherPetsOnce()
+        if #getgenv().SelectedPets == 0 then return end
+        for _, uuid in ipairs(getgenv().SelectedPets) do
+            task.spawn(function()
+                for n = 1, 6 do
+                    ReplicatedStorage.GameEvents.ActivePetService:FireServer("MovePetTo", uuid, TargetPosition)
+                end
+                waitUntilPetNear(uuid, TargetPosition, 2)
+                ReplicatedStorage.GameEvents.ActivePetService:FireServer("SetPetState", uuid, "Idle")
+            end)
+        end
+    end
+
+    local function startAutoMid()
+        if currentLoopThread then
+            task.cancel(currentLoopThread)
+            currentLoopThread = nil
+        end
+        currentLoopThread = task.spawn(function()
+            gatherPetsOnce()
+            while getgenv().PetIdle do
+                task.wait(0.1)
+                gatherPetsOnce()
+            end
+        end)
+    end
+
+    local function rebuildPetList()
+        local allPets = getAllPetInfo()
+        Tabs.Pets:Clear()
+        for _, pet in ipairs(allPets) do
+            Tabs.Pets:AddToggle(pet.name, {
+                Title = pet.name,
+                Description = "Select pet to manage",
+                Default = table.find(getgenv().SelectedPets, pet.uuid) ~= nil,
+                Callback = function(value)
+                    if value then
+                        table.insert(getgenv().SelectedPets, pet.uuid)
+                    else
+                        local index = table.find(getgenv().SelectedPets, pet.uuid)
+                        if index then table.remove(getgenv().SelectedPets, index) end
+                    end
+                end
+            })
+        end
+    end
+
+    Tabs.Pets:AddButton({
+        Title = "Refresh Pets",
+        Description = "Update pet list",
+        Callback = function()
+            rebuildPetList()
+        end
+    })
+
+    rebuildPetList()
+
+    -- Others Tab
+    local weatherAttributes = {"Blackhole", "AuroraBorealis"}
+    for _, attr in ipairs(weatherAttributes) do
+        if workspace:GetAttribute(attr) == nil then
+            workspace:SetAttribute(attr, false)
+        end
+    end
+
+    local currentWeather = nil
+    local visualState = settings.visualWeather
+
+    local function enableWeather(name)
+        for _, attr in ipairs(weatherAttributes) do workspace:SetAttribute(attr, false) end
+        workspace:SetAttribute(name, true)
+        print("Weather enabled:", name)
+    end
+
+    local function disableWeather()
+        for _, attr in ipairs(weatherAttributes) do workspace:SetAttribute(attr, false) end
+        workspace.Gravity = 196.2
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.JumpPower, hum.WalkSpeed = 50, 16 end
+        print("Weather disabled.")
+    end
+
+    local sprinklerNames = {"Basic Sprinkler", "Advanced Sprinkler", "Godly Sprinkler", "Master Sprinkler", "Honey Sprinkler", "Chocolate Sprinkler"}
+    local selectedSprinklers = {}
+
+    Tabs.Others:AddDropdown("WeatherList", {
+        Title = "Weather List",
+        Values = weatherAttributes,
+        Multi = false,
+        Default = {},
+        Callback = function(value)
+            if #value > 0 then
+                currentWeather = value[1]
+                if visualState then enableWeather(currentWeather) end
+            else
+                currentWeather = nil
+                if visualState then disableWeather() end
+            end
+        end
+    })
+
+    Tabs.Others:AddToggle("Visual", {
+        Title = "Visual",
+        Description = "Toggle weather visuals",
+        Default = visualState,
+        Callback = function(value)
+            settings.visualWeather = value
+            visualState = value
+            saveSettings(settings)
+            if value and currentWeather then
+                enableWeather(currentWeather)
+            elseif not value then
+                disableWeather()
+            end
+        end
+    })
+
+    Tabs.Others:AddDropdown("SprinklerList", {
+        Title = "Sprinkler List",
+        Values = sprinklerNames,
+        Multi = true,
+        Default = {},
+        Callback = function(value)
+            for _, s in ipairs(sprinklerNames) do
+                selectedSprinklers[s] = table.find(value, s) ~= nil
+            end
+        end
+    })
+
     -- Misc Tab
     Tabs.Misc:AddParagraph({
         Title = "Information",
-        Content = "This tab is reserved for miscellaneous features."
+        Content = "Miscellaneous features."
     })
 
-    -- Join Server Tab
-    Tabs.JoinServer:AddToggle("AutoPublicRejoin", {
-        Title = "Auto Public Rejoin",
-        Description = "Enable to auto-rejoin public server",
-        Default = autoPublicRejoin,
+    Tabs.Misc:AddToggle("AutoMid", {
+        Title = "Auto Mid",
+        Description = "Automatically manage selected pets",
+        Default = getgenv().PetIdle,
         Callback = function(value)
-            autoPublicRejoin = value
-            settings.autoPublicRejoin = value
-            if value then
-                autoPrivateRejoin = false
-                settings.autoPrivateRejoin = false
-                Tabs.JoinServer:GetElement("AutoPrivateRejoin"):SetState(false)
-            end
+            settings.petIdle = value
+            getgenv().PetIdle = value
             saveSettings(settings)
-        end
-    })
-
-    Tabs.JoinServer:AddToggle("AutoPrivateRejoin", {
-        Title = "Auto Private Rejoin",
-        Description = "Enable to auto-rejoin private server",
-        Default = autoPrivateRejoin,
-        Callback = function(value)
-            autoPrivateRejoin = value
-            settings.autoPrivateRejoin = value
             if value then
-                autoPublicRejoin = false
-                settings.autoPublicRejoin = false
-                Tabs.JoinServer:GetElement("AutoPublicRejoin"):SetState(false)
+                startAutoMid()
+            else
+                if currentLoopThread then
+                    task.cancel(currentLoopThread)
+                    currentLoopThread = nil
+                end
             end
-            saveSettings(settings)
         end
-    })
-
-    Tabs.JoinServer:AddButton({
-        Title = "Rejoin Public Now",
-        Description = "Manually rejoin public server",
-        Callback = function()
-            rejoinServer(settings.rejoinDelay, true)
-        end
-    })
-
-    Tabs.JoinServer:AddButton({
-        Title = "Rejoin Private Now",
-        Description = "Manually rejoin private server",
-        Callback = function()
-            rejoinServer(settings.rejoinDelay, false)
-        end
-    })
-
-    Tabs.JoinServer:AddParagraph({
-        Title = "Information",
-        Content = "Private server rejoin checks for other players. If none, it warns you."
     })
 
     -- Settings Tab
     Tabs.Settings:AddSlider("RejoinDelay", {
         Title = "Rejoin Delay (seconds)",
-        Description = "Delay between rejoin attempts",
+        Description = "Delay",
         Default = settings.rejoinDelay,
         Min = 5,
         Max = 60,
